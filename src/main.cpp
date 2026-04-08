@@ -47,6 +47,7 @@ ESP_Mail_Session session;
 
 /* Callback function to get the Email sending status */
 void smtpCallback(SMTP_Status status);
+void envioemail(String mensagemEmail, String assuntoEmail);
 const char rootCACert[] PROGMEM = "-----BEGIN CERTIFICATE-----\n"
                                   "-----END CERTIFICATE-----\n";
 
@@ -111,11 +112,18 @@ const long interval = 5000;    // Interval between sensor readings.
 const int vcc_ds1820 =  4;   // GPIO que alimenta o sensor de temperatura
 const int output = 26;  // GPIO where the output is connected to
 const int oneWireBus = 13;     // GPIO where the DS18B20 is connected to
+const int RELAY_ON = LOW;
+const int RELAY_OFF = HIGH;
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(oneWireBus);
 // Pass our oneWire reference to Dallas Temperature sensor 
 DallasTemperature sensors(&oneWire);
+
+void setRelayState(bool active) {
+  triggerActive = active;
+  digitalWrite(output, active ? RELAY_ON : RELAY_OFF);
+}
 
 void setup() {
   Serial.begin(115200);
@@ -150,6 +158,7 @@ void setup() {
 
   // Liga o sensor 1820
   pinMode(output, OUTPUT);
+  setRelayState(false);
   digitalWrite(vcc_ds1820, HIGH);
   delay(500);
   // Start the DS18B20 sensor
@@ -188,6 +197,21 @@ void setup() {
     delay(2000);
     sensors.requestTemperatures();
     float temperature = sensors.getTempCByIndex(0);
+    lastTemperature = String(temperature);
+
+    float TemperaturaCorrigidaMais = float(inputMessage.toFloat() + 1.5);
+    float TemperaturaCorrigidaMenos = float(inputMessage.toFloat() - 1.5);
+
+    if (inputMessage2 == "true") {
+      if (temperature > TemperaturaCorrigidaMais) {
+        setRelayState(true);
+      } else if (temperature < TemperaturaCorrigidaMenos) {
+        setRelayState(false);
+      }
+    } else {
+      setRelayState(false);
+    }
+
     String textoparaemail = String (" PowerUp da Geladeira  IP " + String (ip) + "  -  Temperatura de " + String(temperature));
     envioemail (textoparaemail, textoparaemail);
 }
@@ -219,8 +243,7 @@ void loop() {
       String message = String("Temperature above threshold. Current temperature: ") + 
                         String(temperature) + String("C");
       Serial.println(message);
-      triggerActive = true;
-      digitalWrite(output, LOW);
+      setRelayState(true);
       Serial.println("Low");
     }
 
@@ -229,8 +252,7 @@ void loop() {
       String message = String("Temperature below threshold. Current temperature: ") + 
       String(temperature) + String(" C");
       Serial.println(message);
-      triggerActive = false;
-      digitalWrite(output, HIGH);
+      setRelayState(false);
       Serial.println("HIGH");
     }
   

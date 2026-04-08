@@ -1,7 +1,7 @@
 /*
-Envia email no power-up.
-Envia email acima de 10 C e abaixo de 0 C a cada 1 hora.
-Grava na EEPROM com sucesso.
+ENvio de email no powerup
+Envio de email acima de 10C e abaixo de 0C a cada 1 hora
+Gravando na EEProm com sucessoz 
 */
 
 #include <WiFi.h>
@@ -23,7 +23,8 @@ IPAddress subnet(255, 255, 0, 0);
 IPAddress primaryDNS(8, 8, 8, 8);   // optional
 IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
-// CONFIGURACAO DA BIBLIOTECA DE HORAS
+//CONFIGURAÇÃO DA BIBLIOTECA DE HORAS
+
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = -10800;
 const int   daylightOffset_sec = 0;
@@ -46,7 +47,6 @@ ESP_Mail_Session session;
 
 /* Callback function to get the Email sending status */
 void smtpCallback(SMTP_Status status);
-void envioemail(String mensagemEmail, String assuntoEmail);
 const char rootCACert[] PROGMEM = "-----BEGIN CERTIFICATE-----\n"
                                   "-----END CERTIFICATE-----\n";
 
@@ -56,7 +56,7 @@ String lastTemperature;
 String enableArmChecked = "checked";
 String inputMessage2 = "true";
 
-// Definicao de constantes e diversos
+// Definição de constantes e diversos
 unsigned long previousMillis1 = 0;
 long intervaloEnviarEmail = 3600000; //86400000 ms => 24hs
  
@@ -129,13 +129,14 @@ void setup() {
    pinMode(vcc_ds1820, OUTPUT);
    digitalWrite(vcc_ds1820, LOW);
    
-// Leitura da EEPROM para atualizar a variavel inputMessage
+// Leitura da EEprom para atualizar a variavel inoutMessage
   preferences.begin("MemEProm", false);
   String teste1 = preferences.getString("Temperatura");
   inputMessage = teste1;
   Serial.println("dado obtido da var InputMessage / EEPROM ->> " + inputMessage );
   preferences.end();
-  //WiFi.config(local_IP, gateway,subnet , primaryDNS, secondaryDNS );           // Forca o IP na conexao.
+
+  //WiFi.config(local_IP, gateway,subnet , primaryDNS, secondaryDNS );           // Força o IP na conexão.
   WiFi.mode(WIFI_STA);WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");

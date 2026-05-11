@@ -5,8 +5,7 @@ Gravando na EEProm com sucessoz
 */
 
 #include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+#include <WebServer.h>
 #include <Wire.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -78,11 +77,11 @@ const char index_html[] PROGMEM = R"rawliteral(
   </form>
 </body></html>)rawliteral";
 
-void notFound(AsyncWebServerRequest *request) {
-  request->send(404, "text/plain", "Not found");
-}
+WebServer server(80);
 
-AsyncWebServer server(80);
+void notFound() {
+  server.send(404, "text/plain", "Not found");
+}
 
 // Replaces placeholder with DS18B20 values
 String processor(const String& var){
@@ -99,6 +98,14 @@ String processor(const String& var){
   return String();
 }
 
+String buildIndexPage() {
+  String page = FPSTR(index_html);
+  page.replace("%TEMPERATURE%", processor("TEMPERATURE"));
+  page.replace("%THRESHOLD%", processor("THRESHOLD"));
+  page.replace("%ENABLE_ARM_INPUT%", processor("ENABLE_ARM_INPUT"));
+  return page;
+}
+
 // Flag variable to keep track if triggers was activated or not
 bool triggerActive = true;
 bool poweron = true;
@@ -112,18 +119,11 @@ const long interval = 5000;    // Interval between sensor readings.
 const int vcc_ds1820 =  4;   // GPIO que alimenta o sensor de temperatura
 const int output = 26;  // GPIO where the output is connected to
 const int oneWireBus = 13;     // GPIO where the DS18B20 is connected to
-const int RELAY_ON = LOW;
-const int RELAY_OFF = HIGH;
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(oneWireBus);
 // Pass our oneWire reference to Dallas Temperature sensor 
 DallasTemperature sensors(&oneWire);
-
-void setRelayState(bool active) {
-  triggerActive = active;
-  digitalWrite(output, active ? RELAY_ON : RELAY_OFF);
-}
 
 void setup() {
   Serial.begin(115200);
@@ -158,7 +158,6 @@ void setup() {
 
   // Liga o sensor 1820
   pinMode(output, OUTPUT);
-  setRelayState(false);
   digitalWrite(vcc_ds1820, HIGH);
   delay(500);
   // Start the DS18B20 sensor
@@ -167,18 +166,18 @@ void setup() {
 
     
   // Send web page to client
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html, processor);
+  server.on("/", HTTP_GET, [](){
+    server.send(200, "text/html", buildIndexPage());
   });
 
   // Receive an HTTP GET request at <ESP_IP>/get?threshold_input=<inputMessage>&enable_arm_input=<inputMessage2>
-  server.on("/get", HTTP_GET, [] (AsyncWebServerRequest *request) {
+  server.on("/get", HTTP_GET, []() {
     // GET threshold_input value on <ESP_IP>/get?threshold_input=<inputMessage>
-    if (request->hasParam(PARAM_INPUT_1)) {
-      inputMessage = request->getParam(PARAM_INPUT_1)->value();
+    if (server.hasArg(PARAM_INPUT_1)) {
+      inputMessage = server.arg(PARAM_INPUT_1);
       // GET enable_arm_input value on <ESP_IP>/get?enable_arm_input=<inputMessage2>
-      if (request->hasParam(PARAM_INPUT_2)) {
-        inputMessage2 = request->getParam(PARAM_INPUT_2)->value();
+      if (server.hasArg(PARAM_INPUT_2)) {
+        inputMessage2 = server.arg(PARAM_INPUT_2);
         enableArmChecked = "checked";
       }
       else {
@@ -188,7 +187,7 @@ void setup() {
     }
     Serial.println(inputMessage);
     Serial.println(inputMessage2);
-    request->send(200, "text/html", "HTTP GET request sent to your ESP.<br><a href=\"/\">Return to Home Page</a>");
+    server.send(200, "text/html", "HTTP GET request sent to your ESP.<br><a href=\"/\">Return to Home Page</a>");
   });
   server.onNotFound(notFound);
   server.begin();
@@ -197,26 +196,13 @@ void setup() {
     delay(2000);
     sensors.requestTemperatures();
     float temperature = sensors.getTempCByIndex(0);
-    lastTemperature = String(temperature);
-
-    float TemperaturaCorrigidaMais = float(inputMessage.toFloat() + 1.5);
-    float TemperaturaCorrigidaMenos = float(inputMessage.toFloat() - 1.5);
-
-    if (inputMessage2 == "true") {
-      if (temperature > TemperaturaCorrigidaMais) {
-        setRelayState(true);
-      } else if (temperature < TemperaturaCorrigidaMenos) {
-        setRelayState(false);
-      }
-    } else {
-      setRelayState(false);
-    }
-
     String textoparaemail = String (" PowerUp da Geladeira  IP " + String (ip) + "  -  Temperatura de " + String(temperature));
     envioemail (textoparaemail, textoparaemail);
 }
 
 void loop() {   
+  server.handleClient();
+
    unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
@@ -243,7 +229,8 @@ void loop() {
       String message = String("Temperature above threshold. Current temperature: ") + 
                         String(temperature) + String("C");
       Serial.println(message);
-      setRelayState(true);
+      triggerActive = true;
+      digitalWrite(output, LOW);
       Serial.println("Low");
     }
 
@@ -252,7 +239,8 @@ void loop() {
       String message = String("Temperature below threshold. Current temperature: ") + 
       String(temperature) + String(" C");
       Serial.println(message);
-      setRelayState(false);
+      triggerActive = false;
+      digitalWrite(output, HIGH);
       Serial.println("HIGH");
     }
   

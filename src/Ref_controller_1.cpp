@@ -50,6 +50,19 @@ void envioemail(String mensagemEmail, String assuntoEmail);
 const char rootCACert[] PROGMEM = "-----BEGIN CERTIFICATE-----\n"
                                   "-----END CERTIFICATE-----\n";
 
+String nomeArquivoCompilado() {
+  String arquivo = __FILE__;
+  int posBarra = arquivo.lastIndexOf('/');
+  int posContraBarra = arquivo.lastIndexOf('\\');
+  int posSeparador = max(posBarra, posContraBarra);
+
+  if (posSeparador >= 0) {
+    return arquivo.substring(posSeparador + 1);
+  }
+
+  return arquivo;
+}
+
 // Default Threshold Temperature Value
 String inputMessage = "6.0";
 String lastTemperature;
@@ -330,14 +343,17 @@ void envioemail(String mensagemEmail , String assuntoEmail ) {
 
     /* Declare the message class */
     SMTP_Message message;
+    String arquivoOrigem = nomeArquivoCompilado();
+    String assuntoComArquivo = String(assuntoEmail) + " - Origem: " + arquivoOrigem;
+    String mensagemComArquivo = String(mensagemEmail) + "\n\nArquivo origem compilado: " + arquivoOrigem;
 
     /* Set the message headers */
     message.sender.name = F("Geladeira");
     message.sender.email = AUTHOR_EMAIL;
-    message.subject = (String(assuntoEmail));
+    message.subject = assuntoComArquivo;
     message.addRecipient(F("Someone"), EMAIL_DESTINO);
     message.text.flowed = true;
-    message.text.content = (String(mensagemEmail));
+    message.text.content = mensagemComArquivo;
     message.text.charSet = F("us-ascii");
     message.text.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
     message.priority = esp_mail_smtp_priority::esp_mail_smtp_priority_low;

@@ -71,15 +71,13 @@ String nomeArquivoCompilado() {
 // Default Threshold Temperature Value
 String inputMessage = "6.0";
 String lastTemperature;
-String enableArmChecked = "checked";
-String inputMessage2 = "true";
 
 // Definição de constantes e diversos
 unsigned long previousMillis1 = 0;
 long intervaloEnviarEmail = 3600000; //86400000 ms => 24hs
  
 
-// HTML web page to handle 2 input fields (threshold_input, enable_arm_input)
+// HTML web page to handle the temperature control buttons
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html lang="pt-BR"><head>
   <meta charset="utf-8">
@@ -101,17 +99,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     .goal { text-align: center; margin-bottom: 20px; }
     .goal .title { font-size: 13px; color: #64748B; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 6px; }
     .goal .value { font-size: 32px; font-weight: 700; color: #111827; }
-    .form-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-    .switch { position: relative; display: inline-block; width: 56px; height: 32px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; inset: 0; background: #E2E8F0; border-radius: 999px; transition: background 0.2s ease; }
-    .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 4px; top: 4px; background: white; border-radius: 50%; transition: transform 0.2s ease; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12); }
-    input:checked + .slider { background: #0B77FF; }
-    input:checked + .slider:before { transform: translateX(24px); }
-    .switch-label { font-size: 15px; color: #334155; margin-left: 12px; }
-    .submit-button { width: 100%; border: none; border-radius: 14px; background: #0B77FF; color: #FFF; font-size: 16px; font-weight: 700; padding: 14px 0; cursor: pointer; }
-    .submit-button:active { transform: scale(0.99); }
-    input[type='hidden'] { display: none; }
+    .message { font-size: 13px; color: #475569; text-align: center; line-height: 1.5; margin-top: 12px; }
   </style>
 </head><body>
   <div class="card">
@@ -131,38 +119,27 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="title">Temperatura selecionada</div>
       <div class="value" id="goal">%THRESHOLD% &deg;C</div>
     </div>
-    <form action="/get" method="GET">
-      <input type="hidden" name="threshold_input" id="threshold_input" value="%THRESHOLD%">
-      <div class="form-row">
-        <label class="switch">
-          <input type="checkbox" name="enable_arm_input" id="enable_arm_input" value="true" %ENABLE_ARM_INPUT%>
-          <span class="slider"></span>
-        </label>
-        <span class="switch-label">Armar controle</span>
-      </div>
-      <button class="submit-button" type="submit">Salvar</button>
-    </form>
+    <div class="message">Toque em um modo para aplicar imediatamente a nova temperatura alvo. O valor será enviado ao dispositivo e mostrado na tela.</div>
   </div>
   <script>
     const buttons = document.querySelectorAll('.mode-btn');
-    const thresholdInput = document.getElementById('threshold_input');
     const goalValue = document.getElementById('goal');
     const currentThreshold = parseFloat('%THRESHOLD%');
 
-    function selectMode(value) {
+    function setThreshold(value) {
       buttons.forEach(btn => btn.classList.toggle('selected', btn.dataset.value === value));
-      thresholdInput.value = value;
       goalValue.textContent = value + ' °C';
+      fetch('/get?threshold_input=' + encodeURIComponent(value), { method: 'GET' });
     }
 
     buttons.forEach(btn => {
-      btn.addEventListener('click', () => selectMode(btn.dataset.value));
+      btn.addEventListener('click', () => setThreshold(btn.dataset.value));
       if (parseFloat(btn.dataset.value).toFixed(1) === currentThreshold.toFixed(1)) {
         btn.classList.add('selected');
       }
     });
 
-    selectMode(currentThreshold.toFixed(1));
+    setThreshold(currentThreshold.toFixed(1));
   </script>
 </body></html>)rawliteral";
 
@@ -193,9 +170,6 @@ String processor(const String& var){
   else if(var == "THRESHOLD"){
     return inputMessage;
   }
-  else if(var == "ENABLE_ARM_INPUT"){
-    return enableArmChecked;
-  }
   return String();
 }
 
@@ -203,7 +177,6 @@ String buildIndexPage() {
   String page = FPSTR(index_html);
   page.replace("%TEMPERATURE%", processor("TEMPERATURE"));
   page.replace("%THRESHOLD%", processor("THRESHOLD"));
-  page.replace("%ENABLE_ARM_INPUT%", processor("ENABLE_ARM_INPUT"));
   return page;
 }
 
@@ -213,7 +186,6 @@ bool poweron = true;
 bool flagenvioemailemerg = true;
 
 const char* PARAM_INPUT_1 = "threshold_input";
-const char* PARAM_INPUT_2 = "enable_arm_input";
 
 unsigned long previousMillis = 0;     
 const long interval = 5000;    // Interval between sensor readings.
@@ -280,24 +252,13 @@ void setup() {
     server.send(200, "text/html", buildIndexPage());
   });
 
-  // Receive an HTTP GET request at <ESP_IP>/get?threshold_input=<inputMessage>&enable_arm_input=<inputMessage2>
+  // Receive an HTTP GET request at <ESP_IP>/get?threshold_input=<inputMessage>
   server.on("/get", HTTP_GET, []() {
-    // GET threshold_input value on <ESP_IP>/get?threshold_input=<inputMessage>
     if (server.hasArg(PARAM_INPUT_1)) {
       inputMessage = server.arg(PARAM_INPUT_1);
-      // GET enable_arm_input value on <ESP_IP>/get?enable_arm_input=<inputMessage2>
-      if (server.hasArg(PARAM_INPUT_2)) {
-        inputMessage2 = server.arg(PARAM_INPUT_2);
-        enableArmChecked = "checked";
-      }
-      else {
-        inputMessage2 = "false";
-        enableArmChecked = "";
-      }
     }
-    Serial.println(inputMessage);
-    Serial.println(inputMessage2);
-    server.send(200, "text/html", "HTTP GET request sent to your ESP.<br><a href=\"/\">Return to Home Page</a>");
+    Serial.println("Novo threshold: " + inputMessage);
+    server.send(200, "text/plain", "OK");
   });
 
   server.on("/ota", HTTP_GET, []() {
@@ -386,7 +347,7 @@ void loop() {
     Serial.println(TemperaturaCorrigidaMenos);
 
     // Check if temperature is above threshold and if it needs to trigger output
-    if(temperature > TemperaturaCorrigidaMais && inputMessage2 == "true" && !triggerActive ){
+    if(temperature > TemperaturaCorrigidaMais && !triggerActive ){
      
       String message = String("Temperature above threshold. Current temperature: ") + 
                         String(temperature) + String("C");
@@ -397,7 +358,7 @@ void loop() {
     }
 
     // Check if temperature is below threshold and if it needs to trigger output
-    else if((temperature < TemperaturaCorrigidaMenos) && inputMessage2 == "true" && triggerActive) {
+    else if((temperature < TemperaturaCorrigidaMenos) && triggerActive) {
       String message = String("Temperature below threshold. Current temperature: ") + 
       String(temperature) + String(" C");
       Serial.println(message);

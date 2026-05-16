@@ -1,7 +1,7 @@
 /*
 ENvio de email no powerup
 Envio de email acima de 10C e abaixo de 0C a cada 1 hora
-Gravando na EEProm com sucessoz 
+Gravando na EEProm com sucesso
 */
 
 #include <WiFi.h>
@@ -13,6 +13,7 @@ Gravando na EEProm com sucessoz
 #include <DallasTemperature.h>
 #include "ESP_Mail_Client.h"
 #include "Preferences.h"
+#include "secrets.h"
 #include "time.h" 
 
 Preferences preferences;
@@ -32,17 +33,12 @@ const int   daylightOffset_sec = 0;
 
 
 // CONFIGURACAO EMAIL
-#define AUTHOR_EMAIL    "esp32teste1234@gmail.com"
-#define AUTHOR_PASSWORD "siqh lxfx fqvl xvdt"
-#define EMAIL_DESTINO "jose.jadlog@gmail.com"
 #define SMTP_HOST "smtp.gmail.com"
 #define SMTP_PORT esp_mail_smtp_port_587
 
-const char* ssid = "Boituva_2";
-const char* password = "zecalindo2023";
 const char* otaHostname = "geladeira-esp32";
-const char* otaUsername = "admin";
-const char* otaPassword = "admin";
+const char* otaUsername = OTA_USERNAME;
+const char* otaPassword = OTA_PASSWORD;
  
 // Define the SMTP Session object which used for SMTP transsport
 SMTPSession smtp;
@@ -71,11 +67,15 @@ String nomeArquivoCompilado() {
 
 // Default Threshold Temperature Value
 String inputMessage = "6.0";
+String savedInputMessage = "6.0";
 String lastTemperature;
 
 // Definição de constantes e diversos
 unsigned long previousMillis1 = 0;
 long intervaloEnviarEmail = 3600000; //86400000 ms => 24hs
+const unsigned long wifiConnectTimeoutMs = 20000;
+const unsigned long wifiRetryIntervalMs = 30000;
+unsigned long previousWiFiRetryMillis = 0;
  
 
 // HTML web page to handle the temperature control buttons
@@ -242,6 +242,34 @@ OneWire oneWire(oneWireBus);
 // Pass our oneWire reference to Dallas Temperature sensor 
 DallasTemperature sensors(&oneWire);
 
+bool connectWiFi(unsigned long timeoutMs) {
+  if (WiFi.status() == WL_CONNECTED) {
+    return true;
+  }
+
+  WiFi.disconnect(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  unsigned long startAttempt = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < timeoutMs) {
+    Serial.print(".");
+    delay(500);
+  }
+
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("WiFi connected.");
+    Serial.print("IP ");
+    Serial.println(WiFi.localIP());
+    Serial.println();
+    return true;
+  }
+
+  Serial.println("WiFi nao conectado. O controle continua ativo e tentara reconectar.");
+  return false;
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println(__FILE__);
@@ -256,27 +284,18 @@ void setup() {
    
 // Leitura da EEprom para atualizar a variavel inoutMessage
   preferences.begin("MemEProm", false);
-  String teste1 = preferences.getString("Temperatura");
-  inputMessage = teste1;
+  inputMessage = preferences.getString("Temperatura", "6.0");
+  savedInputMessage = inputMessage;
   Serial.println("dado obtido da var InputMessage / EEPROM ->> " + inputMessage );
   preferences.end();
 
   //WiFi.config(local_IP, gateway,subnet , primaryDNS, secondaryDNS );           // Força o IP na conexão.
-  WiFi.mode(WIFI_STA);WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-  }
-  Serial.println();
-  Serial.println("WiFi connected.");
-  Serial.print("IP ");
-  Serial.println(WiFi.localIP());
-  Serial.println();
+  bool wifiConnected = connectWiFi(wifiConnectTimeoutMs);
 
-  if (!MDNS.begin(otaHostname)) {
+  if (wifiConnected && !MDNS.begin(otaHostname)) {
     Serial.println("Erro ao iniciar mDNS para OTA");
   }
-  else {
+  else if (wifiConnected) {
     Serial.print("mDNS OTA ativo em ");
     Serial.print(otaHostname);
     Serial.println(".local");
@@ -359,23 +378,35 @@ void setup() {
   server.onNotFound(notFound);
   server.begin();
 
-    String ip = WiFi.localIP().toString();
-    delay(2000);
-    sensors.requestTemperatures();
-    float temperature = sensors.getTempCByIndex(0);
-    lastTemperature = String(temperature, 1);
-    String mac = WiFi.macAddress();
-    String textoparaemail = String("PowerUp da Geladeira\n\n") +
-                            "IP do aparelho: " + ip + "\n" +
-                            "MAC do ESP32: " + mac + "\n" +
-                            "Temperatura atual: " + lastTemperature + " C\n" +
-                            "Temperatura selecionada: " + inputMessage + " C\n\n" +
-                            "Acesse: http://" + ip;
-    envioemailHtml(textoparaemail, buildPowerUpEmailHtml(ip, mac, lastTemperature), "PowerUp da Geladeira");
+    if (wifiConnected) {
+      String ip = WiFi.localIP().toString();
+      delay(2000);
+      sensors.requestTemperatures();
+      float temperature = sensors.getTempCByIndex(0);
+      lastTemperature = String(temperature, 1);
+      String mac = WiFi.macAddress();
+      String textoparaemail = String("PowerUp da Geladeira\n\n") +
+                              "IP do aparelho: " + ip + "\n" +
+                              "MAC do ESP32: " + mac + "\n" +
+                              "Temperatura atual: " + lastTemperature + " C\n" +
+                              "Temperatura selecionada: " + inputMessage + " C\n\n" +
+                              "Acesse: http://" + ip;
+      envioemailHtml(textoparaemail, buildPowerUpEmailHtml(ip, mac, lastTemperature), "PowerUp da Geladeira");
+    }
 }
 
 void loop() {   
   server.handleClient();
+
+  if (WiFi.status() != WL_CONNECTED && millis() - previousWiFiRetryMillis >= wifiRetryIntervalMs) {
+    previousWiFiRetryMillis = millis();
+    if (connectWiFi(wifiConnectTimeoutMs)) {
+      MDNS.end();
+      if (!MDNS.begin(otaHostname)) {
+        Serial.println("Erro ao reiniciar mDNS para OTA");
+      }
+    }
+  }
 
    unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
@@ -385,11 +416,14 @@ void loop() {
     Serial.print(temperature);
     Serial.println(" *C");
     
-    // Grava a variavel inputMessage na EEProm
+    // Grava a variavel inputMessage na EEProm somente quando houver mudanca
+    if (inputMessage != savedInputMessage) {
       preferences.begin("MemEProm");
       preferences.putString("Temperatura", inputMessage);
-      Serial.println("Gravado -> " + inputMessage);
       preferences.end();
+      savedInputMessage = inputMessage;
+      Serial.println("Gravado -> " + inputMessage);
+    }
     
     lastTemperature = String(temperature);
     float TemperaturaCorrigidaMais = float (inputMessage.toFloat()+ 1);

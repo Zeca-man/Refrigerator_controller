@@ -9,3 +9,5 @@
 #define AUTHOR_PASSWORD "sua_senha_de_app"
 #define EMAIL_DESTINO "destino@gmail.com"
 
+#define OTA_USERNAME "admin"
+#define OTA_PASSWORD "senha_forte_para_ota"

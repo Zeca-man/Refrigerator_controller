@@ -52,6 +52,7 @@ ESP_Mail_Session session;
 /* Callback function to get the Email sending status */
 void smtpCallback(SMTP_Status status);
 void envioemail(String mensagemEmail, String assuntoEmail);
+void envioemailHtml(String mensagemEmail, String htmlEmail, String assuntoEmail);
 const char rootCACert[] PROGMEM = "-----BEGIN CERTIFICATE-----\n"
                                   "-----END CERTIFICATE-----\n";
 
@@ -111,9 +112,9 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="temp">%TEMPERATURE% &deg;C</div>
     </div>
     <div class="button-row">
-      <button type="button" class="mode-btn" data-value="6.5">🌡️ Frio</button>
-      <button type="button" class="mode-btn selected" data-value="5.0">❄️ Super Frio</button>
-      <button type="button" class="mode-btn" data-value="3.5">🧊 Megafrio</button>
+      <button type="button" class="mode-btn" data-value="6">🌡️ Frio</button>
+      <button type="button" class="mode-btn selected" data-value="4">❄️ Super Frio</button>
+      <button type="button" class="mode-btn" data-value="2">🧊 Megafrio</button>
     </div>
     <div class="goal">
       <div class="title">Temperatura selecionada</div>
@@ -178,6 +179,49 @@ String buildIndexPage() {
   page.replace("%TEMPERATURE%", processor("TEMPERATURE"));
   page.replace("%THRESHOLD%", processor("THRESHOLD"));
   return page;
+}
+
+String buildPowerUpEmailHtml(String ip, String mac, String temperature) {
+  String html = F("<!DOCTYPE HTML><html lang=\"pt-BR\"><head>"
+                  "<meta charset=\"utf-8\">"
+                  "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                  "</head><body style=\"margin:0;padding:0;background:#eef2f7;color:#111827;font-family:Arial,Helvetica,sans-serif;\">"
+                  "<div style=\"max-width:560px;margin:0 auto;padding:22px;\">"
+                  "<div style=\"background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #dbe3ee;box-shadow:0 14px 34px rgba(15,23,42,0.10);\">"
+                  "<div style=\"background:#0f766e;color:#ffffff;padding:18px 22px;\">"
+                  "<div style=\"font-size:12px;letter-spacing:0.14em;text-transform:uppercase;opacity:0.86;\">PowerUp</div>"
+                  "<h1 style=\"font-size:24px;line-height:1.2;margin:6px 0 0 0;\">Geladeira online</h1>"
+                  "</div>"
+                  "<div style=\"padding:22px;\">"
+                  "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse;margin-bottom:20px;\">"
+                  "<tr><td style=\"padding:9px 0;color:#64748b;font-size:13px;\">IP do aparelho</td><td style=\"padding:9px 0;text-align:right;font-size:14px;font-weight:700;\"><a href=\"http://");
+  html += ip;
+  html += F("\" style=\"color:#0b77ff;text-decoration:none;\">");
+  html += ip;
+  html += F("</a></td></tr>"
+            "<tr><td style=\"padding:9px 0;color:#64748b;font-size:13px;border-top:1px solid #e5e7eb;\">MAC do ESP32</td><td style=\"padding:9px 0;text-align:right;font-size:14px;font-weight:700;border-top:1px solid #e5e7eb;\">");
+  html += mac;
+  html += F("</td></tr>"
+            "</table>"
+            "<div style=\"font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;\">Tela exibida no IP</div>"
+            "<div style=\"background:#f8fafc;border-radius:14px;border:1px solid #e2e8f0;padding:20px;text-align:center;\">"
+            "<div style=\"font-size:20px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;color:#0f172a;margin-bottom:20px;\">IOT_GELADEIRA</div>"
+            "<div style=\"font-size:13px;color:#64748b;margin-bottom:6px;\">Temperatura atual</div>"
+            "<div style=\"font-size:54px;line-height:1;font-weight:800;color:#0b77ff;margin-bottom:18px;\">");
+  html += temperature;
+  html += F(" &deg;C</div>"
+            "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:separate;border-spacing:8px;margin-bottom:18px;\"><tr>"
+            "<td style=\"background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;color:#0f172a;\">Frio</td>"
+            "<td style=\"background:#00a896;border:1px solid #00a896;border-radius:12px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;color:#ffffff;\">Super Frio</td>"
+            "<td style=\"background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;color:#0f172a;\">Megafrio</td>"
+            "</tr></table>"
+            "<div style=\"font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;\">Temperatura selecionada</div>"
+            "<div style=\"font-size:30px;font-weight:700;color:#111827;\">");
+  html += inputMessage;
+  html += F(" &deg;C</div>"
+            "</div>"
+            "</div></div></div></body></html>");
+  return html;
 }
 
 // Flag variable to keep track if triggers was activated or not
@@ -319,8 +363,15 @@ void setup() {
     delay(2000);
     sensors.requestTemperatures();
     float temperature = sensors.getTempCByIndex(0);
-    String textoparaemail = String (" PowerUp da Geladeira  IP " + String (ip) + "  -  Temperatura de " + String(temperature));
-    envioemail (textoparaemail, textoparaemail);
+    lastTemperature = String(temperature, 1);
+    String mac = WiFi.macAddress();
+    String textoparaemail = String("PowerUp da Geladeira\n\n") +
+                            "IP do aparelho: " + ip + "\n" +
+                            "MAC do ESP32: " + mac + "\n" +
+                            "Temperatura atual: " + lastTemperature + " C\n" +
+                            "Temperatura selecionada: " + inputMessage + " C\n\n" +
+                            "Acesse: http://" + ip;
+    envioemailHtml(textoparaemail, buildPowerUpEmailHtml(ip, mac, lastTemperature), "PowerUp da Geladeira");
 }
 
 void loop() {   
@@ -341,8 +392,8 @@ void loop() {
       preferences.end();
     
     lastTemperature = String(temperature);
-    float TemperaturaCorrigidaMais = float (inputMessage.toFloat()+ 1.5);
-    float TemperaturaCorrigidaMenos = float (inputMessage.toFloat() - 1.5);
+    float TemperaturaCorrigidaMais = float (inputMessage.toFloat()+ 1);
+    float TemperaturaCorrigidaMenos = float (inputMessage.toFloat() - 1);
     Serial.println(TemperaturaCorrigidaMais);
     Serial.println(TemperaturaCorrigidaMenos);
 
@@ -423,6 +474,10 @@ void smtpCallback(SMTP_Status status)
 }
 
 void envioemail(String mensagemEmail , String assuntoEmail ) {
+    envioemailHtml(mensagemEmail, String(), assuntoEmail);
+}
+
+void envioemailHtml(String mensagemEmail, String htmlEmail, String assuntoEmail) {
 
     /*  Set the network reconnection option */
     MailClient.networkReconnect(true);
@@ -453,19 +508,21 @@ void envioemail(String mensagemEmail , String assuntoEmail ) {
 
     /* Declare the message class */
     SMTP_Message message;
-    String arquivoOrigem = nomeArquivoCompilado();
-    String assuntoComArquivo = String(assuntoEmail) + " - Origem: " + arquivoOrigem;
-    String mensagemComArquivo = String(mensagemEmail) + "\n\nArquivo origem compilado: " + arquivoOrigem;
 
     /* Set the message headers */
     message.sender.name = F("Geladeira");
     message.sender.email = AUTHOR_EMAIL;
-    message.subject = assuntoComArquivo;
+    message.subject = assuntoEmail;
     message.addRecipient(F("Someone"), EMAIL_DESTINO);
     message.text.flowed = true;
-    message.text.content = mensagemComArquivo;
+    message.text.content = mensagemEmail;
     message.text.charSet = F("us-ascii");
     message.text.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
+    if (htmlEmail.length() > 0) {
+        message.html.content = htmlEmail;
+        message.html.charSet = F("utf-8");
+        message.html.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
+    }
     message.priority = esp_mail_smtp_priority::esp_mail_smtp_priority_low;
     message.addHeader(F("Message-ID: <abcde.fghij@gmail.com>"));
 

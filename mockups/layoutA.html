@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Controle - Layout A</title>
+<style>
+  :root{
+    --accent:#0B77FF;
+    --bg:#ffffff;
+    --muted:#E6E9F2;
+    --text:#111827;
+    --size-btn:56px;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;}
+  .app{display:flex;flex-direction:column;min-height:100vh;background:var(--bg);padding:18px;box-sizing:border-box;}
+  .top{flex:0 0 48%;display:flex;align-items:center;justify-content:center;}
+  .pills{display:flex;gap:12px;width:100%;max-width:520px;justify-content:space-between;}
+  .pill{flex:1;min-width:0;height:var(--size-btn);border-radius:999px;border:1px solid var(--muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;color:var(--text);background:transparent;transition:transform .14s,background .14s,box-shadow .14s;}
+  .pill:active{transform:scale(.98);}
+  .pill.selected{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 6px 18px rgba(11,119,255,.12);}
+  .bottom{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+  .temp{font-size:72px;font-weight:700;color:var(--accent);line-height:1;}
+  .label{font-size:14px;color:#6B7280;margin-top:8px;}
+  @media (max-width:420px){.temp{font-size:56px}.pill{font-size:16px;height:50px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="pills" role="tablist" aria-label="Selecionar modo">
+      <button class="pill" id="btn-frio">Frio</button>
+      <button class="pill selected" id="btn-super">Super Frio</button>
+      <button class="pill" id="btn-mega">Megafrio</button>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="temp" id="currentTemp">5.0 °C</div>
+    <div class="label">Temperatura atual</div>
+  </div>
+</div>
+
+<script>
+  const superTemp = 5.0;
+  const temps = { 'frio': superTemp + 1.5, 'super': superTemp, 'mega': superTemp - 1.5 };
+  const currentEl = document.getElementById('currentTemp');
+  const buttons = {
+    'frio': document.getElementById('btn-frio'),
+    'super': document.getElementById('btn-super'),
+    'mega': document.getElementById('btn-mega')
+  };
+  function setSelected(key){
+    Object.values(buttons).forEach(b=>b.classList.remove('selected'));
+    buttons[key].classList.add('selected');
+    currentEl.textContent = temps[key].toFixed(1) + ' °C';
+  }
+  buttons.frio.addEventListener('click',()=>setSelected('frio'));
+  buttons.super.addEventListener('click',()=>setSelected('super'));
+  buttons.mega.addEventListener('click',()=>setSelected('mega'));
+  // default
+  setSelected('super');
+</script>
+</body>
+</html>

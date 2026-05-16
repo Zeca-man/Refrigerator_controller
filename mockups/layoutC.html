@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Controle - Layout C</title>
+<style>
+  :root{--accent:#0EA5A4;--muted:#D1D5DB;--text:#374151}
+  body{margin:0;font-family:Inter,system-ui,Arial;background:#fff;color:var(--text);padding:18px}
+  .col{display:flex;flex-direction:column;min-height:100vh}
+  .top{flex:0 0 48%;display:flex;align-items:center;justify-content:center}
+  .circles{display:flex;gap:20px;align-items:center}
+  .btn{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--muted);background:transparent;flex-direction:column;gap:6px;font-size:13px;color:var(--text);transition:all .14s}
+  .btn.selected{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 8px 22px rgba(14,165,164,.12)}
+  .bottom{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column}
+  .temp{font-size:96px;font-weight:800}
+  .unit{font-size:22px;color:#6B7280;margin-top:8px}
+  @media (max-width:420px){.temp{font-size:72px}.btn{width:64px;height:64px}}
+</style>
+</head>
+<body>
+<div class="col">
+  <div class="top">
+    <div class="circles">
+      <button class="btn" id="b-frio">Frio</button>
+      <button class="btn selected" id="b-super">Super</button>
+      <button class="btn" id="b-mega">Mega</button>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="temp" id="big">5.0</div>
+    <div class="unit">°C — Temperatura atual</div>
+  </div>
+</div>
+
+<script>
+  const superTemp = 5.0;
+  const vals = {frio: superTemp+1.5, super: superTemp, mega: superTemp-1.5};
+  const big = document.getElementById('big');
+  const bs = {frio: document.getElementById('b-frio'), super: document.getElementById('b-super'), mega: document.getElementById('b-mega')};
+  function sel(k){
+    Object.values(bs).forEach(x=>x.classList.remove('selected'));
+    bs[k].classList.add('selected');
+    big.textContent = vals[k].toFixed(1);
+  }
+  bs.frio.addEventListener('click',()=>sel('frio'));
+  bs.super.addEventListener('click',()=>sel('super'));
+  bs.mega.addEventListener('click',()=>sel('mega'));
+  sel('super');
+</script>
+</body>
+</html>

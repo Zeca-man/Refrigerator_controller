@@ -105,16 +105,16 @@ const char index_html[] PROGMEM = R"rawliteral(
 </head><body>
   <div class="card">
     <div class="header">
-      <h2>IOT_GELADEIRA</h2>
+      <h2>Controle da Geladeira</h2>
     </div>
     <div class="status">
       <div class="label">Temperatura atual</div>
       <div class="temp">%TEMPERATURE% &deg;C</div>
     </div>
     <div class="button-row">
-      <button type="button" class="mode-btn" data-value="6">🌡️ Frio</button>
-      <button type="button" class="mode-btn selected" data-value="4">❄️ Super Frio</button>
-      <button type="button" class="mode-btn" data-value="2">🧊 Megafrio</button>
+      <button type="button" class="mode-btn" data-value="4">🌡️ Frio</button>
+      <button type="button" class="mode-btn selected" data-value="2">❄️ Super Frio</button>
+      <button type="button" class="mode-btn" data-value="0">🧊 Megafrio</button>
     </div>
     <div class="goal">
       <div class="title">Temperatura selecionada</div>
@@ -166,7 +166,8 @@ void notFound() {
 String processor(const String& var){
   //Serial.println(var);
   if(var == "TEMPERATURE"){
-    return lastTemperature;
+    float temp = lastTemperature.toFloat() + 2.0;
+    return String(temp, 1);
   }
   else if(var == "THRESHOLD"){
     return inputMessage;
@@ -428,6 +429,7 @@ void loop() {
     lastTemperature = String(temperature);
     float TemperaturaCorrigidaMais = float (inputMessage.toFloat()+ 1);
     float TemperaturaCorrigidaMenos = float (inputMessage.toFloat() - 1);
+    float selectedMinus4 = float (inputMessage.toFloat() - 4);
     Serial.println(TemperaturaCorrigidaMais);
     Serial.println(TemperaturaCorrigidaMenos);
 
@@ -452,14 +454,8 @@ void loop() {
       Serial.println("HIGH");
     }
   
-    if((temperature > 10)  && flagenvioemailemerg) {
-      String message = String("Temperatura acima de 10 graus - verificar geladeira - ") + String(temperature) + String(" C");
-      Serial.println(message);
-      flagenvioemailemerg = false;
-      envioemail (message, message);
-    }
-      if((temperature < 0)  && flagenvioemailemerg) {
-      String message = String("Temperatura abaixo de 0 graus - verificar geladeira - ") + String(temperature) + String(" C");
+    if((temperature > 10 || temperature <= selectedMinus4) && flagenvioemailemerg) {
+      String message = String("Temperatura fora dos limites - verificar geladeira - ") + String(temperature) + String(" C");
       Serial.println(message);
       flagenvioemailemerg = false;
       envioemail (message, message);

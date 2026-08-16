@@ -97,10 +97,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     .mode-btn { flex: 1; min-height: 64px; border: 1px solid transparent; border-radius: 18px; background: #FFFFFF; color: #0F172A; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease; }
     .mode-btn.selected { background: #00A896; color: #FFFFFF; box-shadow: 0 12px 28px rgba(0, 168, 150, 0.16); }
     .mode-btn:active { transform: scale(0.98); }
-    .goal { text-align: center; margin-bottom: 20px; }
-    .goal .title { font-size: 13px; color: #64748B; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 6px; }
-    .goal .value { font-size: 32px; font-weight: 700; color: #111827; }
-    .message { font-size: 13px; color: #475569; text-align: center; line-height: 1.5; margin-top: 12px; }
+    .mode-label { font-size: 13px; color: #64748B; text-align: center; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 10px; }
   </style>
 </head><body>
   <div class="card">
@@ -111,36 +108,33 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="label">Temperatura atual</div>
       <div class="temp">%TEMPERATURE% &deg;C</div>
     </div>
+    <div class="mode-label">Modo em opera&ccedil;&atilde;o</div>
     <div class="button-row">
       <button type="button" class="mode-btn" data-value="4">🌡️ Frio</button>
-      <button type="button" class="mode-btn selected" data-value="2">❄️ Super Frio</button>
+      <button type="button" class="mode-btn" data-value="2">❄️ Super Frio</button>
       <button type="button" class="mode-btn" data-value="0">🧊 Megafrio</button>
     </div>
-    <div class="goal">
-      <div class="title">Temperatura selecionada</div>
-      <div class="value" id="goal">%THRESHOLD% &deg;C</div>
-    </div>
-    <div class="message">Toque em um modo para aplicar imediatamente a nova temperatura alvo. O valor será enviado ao dispositivo e mostrado na tela.</div>
   </div>
   <script>
     const buttons = document.querySelectorAll('.mode-btn');
-    const goalValue = document.getElementById('goal');
     const currentThreshold = parseFloat('%THRESHOLD%');
 
-    function setThreshold(value) {
+    function setSelectedMode(value) {
       buttons.forEach(btn => btn.classList.toggle('selected', btn.dataset.value === value));
-      goalValue.textContent = value + ' °C';
+    }
+
+    function setThreshold(value) {
+      setSelectedMode(value);
       fetch('/get?threshold_input=' + encodeURIComponent(value), { method: 'GET' });
     }
 
     buttons.forEach(btn => {
       btn.addEventListener('click', () => setThreshold(btn.dataset.value));
       if (parseFloat(btn.dataset.value).toFixed(1) === currentThreshold.toFixed(1)) {
-        btn.classList.add('selected');
+        setSelectedMode(btn.dataset.value);
       }
     });
 
-    setThreshold(currentThreshold.toFixed(1));
   </script>
 </body></html>)rawliteral";
 
